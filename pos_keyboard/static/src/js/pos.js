@@ -17,19 +17,35 @@ function pos_keyboard_widgets(instance, module){
             this.pos.keypad.disconnect();
         },
         keypad_action: function(data, type){
-             var numpad =  this.pos_widget.numpad;
-             if (data.type === type.numchar){
-                 numpad.state.appendNewChar(data.val);
-             }
-             else if (data.type === type.bmode) {
-                 numpad.state.changeMode(data.val);
-             }
-             else if (data.type === type.sign){
-                 numpad.clickSwitchSign();
-             }
-             else if (data.type === type.backspace){
-                 numpad.clickDeleteLastChar();
-             }
+            var numpad =  this.pos_widget.numpad;
+            var current_orderline_id = self.pos.attributes.selectedOrder.getSelectedLine().id;
+            console.log(current_orderline_id)
+            var new_orderline_id = undefined;
+            if (data.type === type.numchar){
+                numpad.state.appendNewChar(data.val);
+            }
+            else if (data.type === type.bmode) {
+                numpad.state.changeMode(data.val);
+            }
+            else if (data.type === type.sign){
+                numpad.clickSwitchSign();
+            }
+            else if (data.type === type.backspace){
+                numpad.clickDeleteLastChar();
+            }
+            else if (data.type === type.select_orderline){
+                if (data.val == 'up' && current_orderline_id > 1) {
+                    new_orderline_id = current_orderline_id - 1;
+                }
+                else if (data.val == 'down' && 
+                        current_orderline_id < self.pos.attributes.selectedOrder.get('orderLines').length) {
+                    new_orderline_id = current_orderline_id + 1;
+                }
+                if (new_orderline_id) {
+                    var new_orderline = this.pos.attributes.selectedOrder.getOrderline(new_orderline_id);
+                    this.pos.attributes.selectedOrder.selectLine(new_orderline);
+                }
+            }
         },
     });
 
@@ -49,14 +65,14 @@ function pos_keyboard_widgets(instance, module){
             this.pos_widget = this.pos.pos_widget; 
             this.type = {
                  numchar: 'number, dot',
-                 bmode: 'qty, disc, price', 
+                 bmode: 'quantity, discount, price, up_orderline, down_orderline', 
                  sign: '+, -',
                  backspace: 'backspace'
-            }
+            };
             this.data = {
                 type: undefined,
                 val: undefined
-            }
+            };
             this.action_callback = undefined;
         },
 
@@ -93,6 +109,8 @@ function pos_keyboard_widgets(instance, module){
             var KC_QTY_1 = 81;     // KeyCode: Quantity (Keypad 'q')
             var KC_AMT_1 = 80;     // KeyCode: Price (Keypad 'p')
             var KC_DISC_1 = 68;    // KeyCode: Discount Percentage [0..100] (Keypad 'd')
+            var KC_UP = 38;    // KeyCode: (Keypad 'up arrow')
+            var KC_DOWN = 40;    // KeyCode: (Keypad 'down arrow')
 
             var KC_BACKSPACE = 8;  // KeyCode: Backspace (Keypad 'backspace')       
             var kc_lookup = {
@@ -124,11 +142,13 @@ function pos_keyboard_widgets(instance, module){
                     var is_number = false;
                     var type = self.type;
                     var buttonMode = {
-                        qty: 'quantity',
-                        disc: 'discount',
-                        price: 'price'
+                        quantity: 'quantity',
+                        discount: 'discount',
+                        price: 'price',
+                        select_orderline: 'select_orderline',
                     };
                     var token = e.keyCode;
+                    var active_screenwidget = self.pos.pos_widget.screen_selector.get_current_screen();
                     if ((token >= 96 && token <= 105 || token == 110) ||
                         (token >= 48 && token <= 57 || token == 190)) {
                             self.data.type = type.numchar;
@@ -142,7 +162,7 @@ function pos_keyboard_widgets(instance, module){
                     } 
                     else if (token == KC_QTY || token == KC_QTY_1) {
                         self.data.type = type.bmode;
-                        self.data.val = buttonMode.qty;
+                        self.data.val = buttonMode.quantity;
                         ok = true;
                     } 
                     else if (token == KC_AMT || token == KC_AMT_1) {
@@ -152,9 +172,19 @@ function pos_keyboard_widgets(instance, module){
                     } 
                     else if (token == KC_DISC || token == KC_DISC_1) {
                         self.data.type = type.bmode;
-                        self.data.val = buttonMode.disc;
+                        self.data.val = buttonMode.discount;
                         ok = true;
-                    } 
+                    }
+                    else if (active_screenwidget == 'products' && token == KC_UP) {
+                        self.data.type = type.select_orderline;
+                        self.data.val = 'up';
+                        ok = true;
+                    }
+                    else if (active_screenwidget == 'products' && token == KC_DOWN) {
+                        self.data.type = type.select_orderline;
+                        self.data.val = 'down';
+                        ok = true;
+                    }
                     else if (token == KC_BACKSPACE) {
                         self.data.type = type.backspace;
                         ok = true;
