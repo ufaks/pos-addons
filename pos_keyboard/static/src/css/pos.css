@@ -1,0 +1,4 @@
+.pos .active-item {
+    border-bottom-color: #fff;
+    outline: 1px solid #f99;
+}

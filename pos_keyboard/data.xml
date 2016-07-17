@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <openerp>
     <data>
-        <template id="assets_backend" name="debt pos assets" inherit_id="point_of_sale.assets_backend">
+
+        <template id="pos_keyboard" inherit_id='point_of_sale.index' name="pos keyboard index">
+            <xpath expr="//link[@id='pos-stylesheet']" position="after">
+                <link rel="stylesheet" href="/pos_keyboard/static/src/css/pos.css" />
+            </xpath>
+        </template>
+
+        <template id="assets_backend" name="pos keyboard assets" inherit_id="point_of_sale.assets_backend">
             <xpath expr="." position="inside">
 				<script type="text/javascript" src="/pos_keyboard/static/src/js/pos.js"></script>
             </xpath>
         </template>
+
     </data>
 </openerp>

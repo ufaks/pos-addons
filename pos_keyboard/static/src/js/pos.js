@@ -18,8 +18,6 @@ function pos_keyboard_widgets(instance, module){
         },
         keypad_action: function(data, type){
             var numpad =  this.pos_widget.numpad;
-            var current_orderline_id = self.pos.attributes.selectedOrder.getSelectedLine().id;
-            console.log(current_orderline_id)
             var new_orderline_id = undefined;
             if (data.type === type.numchar){
                 numpad.state.appendNewChar(data.val);
@@ -33,11 +31,12 @@ function pos_keyboard_widgets(instance, module){
             else if (data.type === type.backspace){
                 numpad.clickDeleteLastChar();
             }
-            else if (data.type === type.select_orderline){
-                if (data.val == 'up' && current_orderline_id > 1) {
+            else if (data.type === 'select_orderline'){
+                var current_orderline_id = self.pos.attributes.selectedOrder.getSelectedLine().id;
+                if (data.val === 'up' && current_orderline_id > 1) {
                     new_orderline_id = current_orderline_id - 1;
                 }
-                else if (data.val == 'down' && 
+                else if (data.val === 'down' && 
                         current_orderline_id < self.pos.attributes.selectedOrder.get('orderLines').length) {
                     new_orderline_id = current_orderline_id + 1;
                 }
@@ -46,6 +45,22 @@ function pos_keyboard_widgets(instance, module){
                     this.pos.attributes.selectedOrder.selectLine(new_orderline);
                 }
             }
+            else if (data.type === 'add_paymentline'){
+                self.pos.get('selectedOrder').addPaymentline(self.pos.cashregisters[data.val - 1]);
+                self.pos_widget.screen_selector.set_current_screen('payment');
+            }/*
+            else if (data.type === 'switch'){
+                console.log('OK');
+                var $orderlist = $('.order');
+                var $product_first = $('.product:first-child');
+                if ($orderlist.hasClass('active-item')){
+                    $orderlist.removeClass('active-item');
+                    $product_first.addClass('active-item');
+                } else {
+                    $orderlist.addClass('active-item');
+                    $product_first.removeClass('active-item');
+                }
+            }*/
         },
     });
 
@@ -65,9 +80,9 @@ function pos_keyboard_widgets(instance, module){
             this.pos_widget = this.pos.pos_widget; 
             this.type = {
                  numchar: 'number, dot',
-                 bmode: 'quantity, discount, price, up_orderline, down_orderline', 
+                 bmode: 'quantity, discount, price',
                  sign: '+, -',
-                 backspace: 'backspace'
+                 backspace: 'backspace',
             };
             this.data = {
                 type: undefined,
@@ -109,8 +124,15 @@ function pos_keyboard_widgets(instance, module){
             var KC_QTY_1 = 81;     // KeyCode: Quantity (Keypad 'q')
             var KC_AMT_1 = 80;     // KeyCode: Price (Keypad 'p')
             var KC_DISC_1 = 68;    // KeyCode: Discount Percentage [0..100] (Keypad 'd')
-            var KC_UP = 38;    // KeyCode: (Keypad 'up arrow')
-            var KC_DOWN = 40;    // KeyCode: (Keypad 'down arrow')
+            // var KC_TAB = 9;  // KeyCode: Switch between orderlines and products (Keypad 'Tab')
+            var KC_UP = 38;  // KeyCode: Up orderlines (Keypad 'up arrow')
+            var KC_DOWN = 40;  // KeyCode: Down orderlines (Keypad 'down arrow')
+            // var KC_LEFT = 37;  // KeyCode: Select previous product (Keypad 'left arrow')
+            // var KC_RIGHT = 37;  // KeyCode: Select next product (Keypad 'right arrow')
+            var KC_F1 = 112;  // KeyCode: Select first payment method (Keypad 'F1')
+            var KC_F2 = 113;  // KeyCode: Select second payment method (Keypad 'F2')
+            var KC_F3 = 114;  // KeyCode: Select third payment method (Keypad 'F3')
+            var KC_F4 = 115;  // KeyCode: Select fourth payment method (Keypad 'F4')
 
             var KC_BACKSPACE = 8;  // KeyCode: Backspace (Keypad 'backspace')       
             var kc_lookup = {
@@ -120,6 +142,7 @@ function pos_keyboard_widgets(instance, module){
                 96: '0', 97: '1', 98: '2',  99: '3', 100: '4',
                 101: '5', 102: '6', 103: '7', 104: '8', 105: '9',
                 106: '*', 107: '+', 109: '-', 110: '.', 111: '/',
+                112: '1', 113: '2', 114: '3', 115: '4'
             };
 
             //cancel return to the previous page when press backspace
@@ -130,7 +153,17 @@ function pos_keyboard_widgets(instance, module){
                         e.preventDefault();
                     }
                 }
+                else if($.inArray(e.which, [112, 113, 114, 115]) >= 0 &&
+                        kc_lookup[e.which] <= self.pos.journals.length){
+                    e.preventDefault();
+                }
+                else if($.inArray(e.which, [38, 40]) >= 0){
+                    e.preventDefault();
+                }
             });
+            
+            /*$('.product:first-child').addClass('active-item');*/
+            /*$('.order').addClass('active-item');*/
 
             //usb keyboard keyup event
             var ok = false;
@@ -145,7 +178,6 @@ function pos_keyboard_widgets(instance, module){
                         quantity: 'quantity',
                         discount: 'discount',
                         price: 'price',
-                        select_orderline: 'select_orderline',
                     };
                     var token = e.keyCode;
                     var active_screenwidget = self.pos.pos_widget.screen_selector.get_current_screen();
@@ -175,19 +207,33 @@ function pos_keyboard_widgets(instance, module){
                         self.data.val = buttonMode.discount;
                         ok = true;
                     }
+                    else if (token == KC_BACKSPACE) {
+                        self.data.type = type.backspace;
+                        ok = true;
+                    }
                     else if (active_screenwidget == 'products' && token == KC_UP) {
-                        self.data.type = type.select_orderline;
+                        self.data.type = 'select_orderline';
                         self.data.val = 'up';
                         ok = true;
                     }
                     else if (active_screenwidget == 'products' && token == KC_DOWN) {
-                        self.data.type = type.select_orderline;
+                        self.data.type = 'select_orderline';
                         self.data.val = 'down';
                         ok = true;
                     }
-                    else if (token == KC_BACKSPACE) {
-                        self.data.type = type.backspace;
+                    else if ($.inArray(token, [112, 113, 114, 115]) >= 0 &&
+                             kc_lookup[e.which] <= self.pos.journals.length){
+                        self.data.type = 'add_paymentline';
+                        self.data.val = kc_lookup[token];
                         ok = true;
+                    }/*
+                    else if (){
+                        self.data.type = 'add_new_order';
+                        self.data.val = kc_lookup[token];
+                        ok = true;
+                    }*/
+                    else {
+                        ok = false;
                     }
 
                     if (is_number) {
