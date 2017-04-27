@@ -30,7 +30,7 @@ class ResPartner(models.Model):
         return float(debt_limit)
 
     @api.multi
-    def debt_history(self, limit=0):
+    def debt_history(self, limit=0, start_record=0):
         """
         Get debt details
 
@@ -45,6 +45,8 @@ class ResPartner(models.Model):
                  * balance
 
         """
+        print 'recordS: ', limit, start_record
+        end_record = start_record + limit
         res = []
         fields = [
             'date',
@@ -57,13 +59,15 @@ class ResPartner(models.Model):
         for r in self:
             domain = [('partner_id', '=', r.id)]
             data = {"debt": r.debt}
-            if limit:
+            if end_record:
                 records = self.env['report.pos.debt'].search_read(
                     domain=domain,
                     fields=fields,
-                    limit=limit,
+                    order="id desc",
                 )
-                data['history'] = records
+                for record in records[start_record:end_record]:
+                    print 'record ', record
+                data['history'] = records[start_record:end_record]
             data['records_count'] = self.env['report.pos.debt'].search_count(domain)
             data['partner_id'] = r.id
             res.append(data)

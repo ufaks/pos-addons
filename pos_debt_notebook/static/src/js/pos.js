@@ -49,7 +49,7 @@ odoo.define('pos_debt_notebook.pos', function (require) {
             }
             return def;
         },
-        reload_debts: function(partner_ids, limit, options){
+        reload_debts: function(partner_ids, limit, start_record, options){
             /**
              @param {Array} partner_ids
              @param {Number} limit
@@ -72,6 +72,9 @@ odoo.define('pos_debt_notebook.pos', function (require) {
             // function is called whenever we need to update debt value from server
             if (typeof limit === "undefined"){
                 limit = 0;
+            }
+            if (typeof start_record === "undefined"){
+                start_record = 0;
             }
             options = options || {};
             if (typeof options.postpone === "undefined"){
@@ -103,7 +106,7 @@ odoo.define('pos_debt_notebook.pos', function (require) {
                     return def.then(function(){
                         var request_finished = $.Deferred();
 
-                        self._load_debts(load_partner_ids, limit, options).then(function (data) {
+                        self._load_debts(load_partner_ids, limit, start_record, options).then(function (data) {
                             // success
                             self._on_load_debts(data);
                         }).always(function(){
@@ -111,7 +114,7 @@ odoo.define('pos_debt_notebook.pos', function (require) {
                             request_finished.resolve();
                         }).fail(function () {
                             // make request again
-                            self.reload_debts(load_partner_ids, 0, {"postpone": true, "shadow": false});
+                            self.reload_debts(load_partner_ids, limit, start_record, {"postpone": true, "shadow": false});
                         });
                         return request_finished;
                     });
@@ -119,8 +122,13 @@ odoo.define('pos_debt_notebook.pos', function (require) {
             });
             return this.reload_debts_ready;
         },
-        _load_debts: function(partner_ids, limit, options){
-            return new Model('res.partner').call('debt_history', [partner_ids], {'limit': limit}, {'shadow': options.shadow});
+        _load_debts: function(partner_ids, limit, start_record, options){
+            return new Model('res.partner').call(
+                'debt_history',
+                [partner_ids],
+                {'limit': limit, 'start_record': start_record},
+                {'shadow': options.shadow}
+            );
         },
         _on_load_debts: function(debts){
             var partner_ids = _.map(debts, function(debt){
@@ -146,7 +154,7 @@ odoo.define('pos_debt_notebook.pos', function (require) {
                 var client = this.get_client();
                 if (client) {
                     // reload only debt value, use background mode, send request immediatly
-                    this.pos.reload_debts([client.id], 0, {"postpone": false});
+                    this.pos.reload_debts([client.id], 0, 0, {"postpone": false});
                 }
             }, this);
             return _super_order.initialize.apply(this, arguments);
@@ -398,6 +406,7 @@ odoo.define('pos_debt_notebook.pos', function (require) {
             this.pos.on('updateDebtHistory', function(partner_ids){
                 this.update_debt_history(partner_ids);
             }, this);
+            this.debt_history_limit = 5;
         },
         update_debt_history: function (partner_ids){
             var self = this;
@@ -427,8 +436,10 @@ odoo.define('pos_debt_notebook.pos', function (require) {
             this._super(partners);
         },
         render_debt_history: function(partner){
+            var self = this;
+            this.$('#history_load_more_row').remove();
             var contents = this.$el[0].querySelector('#debt_history_contents');
-            contents.innerHTML = "";
+            // contents.innerHTML = "";
             var debt_type = partner.debt_type;
             var debt_history = partner.history;
             var sign = debt_type === 'credit'
@@ -449,6 +460,26 @@ odoo.define('pos_debt_notebook.pos', function (require) {
                     debt_history_line.innerHTML = debt_history_line_html;
                     debt_history_line = debt_history_line.childNodes[1];
                     contents.appendChild(debt_history_line);
+                }
+                if (debt_history.length === this.debt_history_limit) {
+                    var debt_history_load_more_html = QWeb.render('DebtHistoryLoadMore');
+                    var debt_history_load_more = document.createElement('tbody');
+                    debt_history_load_more.innerHTML = debt_history_load_more_html;
+                    debt_history_load_more = debt_history_load_more.childNodes[1];
+                    contents.appendChild(debt_history_load_more);
+                    var loaded_history_rows = $('#debt_history tr').length - 2;
+                    this.$('#load_more').on('click', function () {
+                        self.pos.reload_debts(
+                            partner.id,
+                            self.debt_history_limit,
+                            loaded_history_rows,
+                            {'postpone': false}
+                        ).then(
+                            function () {
+                                self.render_debt_history(partner);
+                            }
+                        )
+                    });
                 }
             }
         },
@@ -482,17 +513,16 @@ odoo.define('pos_debt_notebook.pos', function (require) {
                         $debt_history.removeClass('oe_hidden');
                         $show_debt_history.addClass('oe_hidden');
                         $show_customers.removeClass('oe_hidden');
-                        // TODO add "Load more" button
-                        var debt_history_limit = 10;
                         self.pos.reload_debts(
                             client.id,
-                            debt_history_limit,
+                            self.debt_history_limit,
+                            0,
                             {"postpone": false}
                         ).then(
-                                function () {
-                                    self.render_debt_history(client);
-                                    $loading_history.addClass('oe_hidden');
-                                });
+                            function () {
+                                self.render_debt_history(client);
+                                $loading_history.addClass('oe_hidden');
+                            });
                     });
                 } else {
                     $show_debt_history.addClass('oe_hidden');
